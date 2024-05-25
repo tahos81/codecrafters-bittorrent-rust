@@ -16,6 +16,16 @@ impl Display for BencodeValue {
         match self {
             BencodeValue::String(s) => write!(f, "\"{}\"", s),
             BencodeValue::Integer(i) => write!(f, "{}", i),
+            BencodeValue::List(l) => {
+                write!(f, "[")?;
+                for (i, value) in l.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", value)?;
+                }
+                write!(f, "]")
+            }
             _ => write!(f, "Not implemented"),
         }
     }
@@ -51,15 +61,31 @@ fn decode_integer(encoded_integer: &str) -> Result<(BencodeValue, &str)> {
     }
 }
 
-fn decode(encoded_value: &str) -> Result<BencodeValue> {
+fn decode_list(encoded_list: &str) -> Result<(BencodeValue, &str)> {
+    // Example: "l5:helloi42ee" -> ["hello", 42]
+    let mut list = Vec::new();
+    let mut remaining = &encoded_list[1..];
+    while remaining.chars().next() != Some('e') {
+        let (value, new_remaining) = decode(remaining)?;
+        list.push(value);
+        remaining = new_remaining;
+    }
+    return Ok((BencodeValue::List(list), &remaining[1..]));
+}
+
+fn decode(encoded_value: &str) -> Result<(BencodeValue, &str)> {
     match encoded_value.chars().next() {
         Some('i') => {
-            let (value, _) = decode_integer(encoded_value)?;
-            return Ok(value);
+            let (value, remaining) = decode_integer(encoded_value)?;
+            return Ok((value, remaining));
+        }
+        Some('l') => {
+            let (value, remaining) = decode_list(encoded_value)?;
+            return Ok((value, remaining));
         }
         Some(_) => {
-            let (value, _) = decode_string(encoded_value)?;
-            return Ok(value);
+            let (value, remaining) = decode_string(encoded_value)?;
+            return Ok((value, remaining));
         }
         None => panic!("Empty data"),
     }
@@ -72,7 +98,7 @@ fn main() -> Result<()> {
 
     if command == "decode" {
         let encoded_value = &args[2];
-        let decoded_value = decode(encoded_value)?;
+        let (decoded_value, _) = decode(encoded_value)?;
         println!("{}", decoded_value);
     } else {
         println!("unknown command: {}", args[1])
