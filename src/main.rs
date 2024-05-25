@@ -1,15 +1,17 @@
 #![allow(dead_code)]
 
 use anyhow::{bail, Result};
-use std::{env, fmt::Display};
+use std::{collections::BTreeMap, env, fmt::Display};
 
 #[derive(Debug)]
 enum BencodeValue {
     String(String),
     Integer(i64),
     List(Vec<BencodeValue>),
-    Dictionary(Vec<(String, BencodeValue)>),
+    Dictionary(Dict),
 }
+
+type Dict = BTreeMap<String, BencodeValue>;
 
 impl Display for BencodeValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -20,13 +22,24 @@ impl Display for BencodeValue {
                 write!(f, "[")?;
                 for (i, value) in l.iter().enumerate() {
                     if i > 0 {
-                        write!(f, ", ")?;
+                        write!(f, ",")?;
                     }
                     write!(f, "{}", value)?;
                 }
                 write!(f, "]")
             }
-            _ => write!(f, "Not implemented"),
+            BencodeValue::Dictionary(d) => {
+                write!(f, "{}", '{')?;
+                for (i, (key, value)) in d.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ",")?;
+                    }
+                    write!(f, "{}", key)?;
+                    write!(f, ":")?;
+                    write!(f, "{}", value)?;
+                }
+                write!(f, "{}", '}')
+            }
         }
     }
 }
@@ -73,6 +86,18 @@ fn decode_list(encoded_list: &str) -> Result<(BencodeValue, &str)> {
     return Ok((BencodeValue::List(list), &remaining[1..]));
 }
 
+fn decode_dict(encoded_dict: &str) -> Result<(BencodeValue, &str)> {
+    let mut dict: Dict = BTreeMap::new();
+    let mut remaining = &encoded_dict[1..];
+    while remaining.chars().next() != Some('e') {
+        let (key, rem) = decode(remaining)?;
+        let (value, new_remaining) = decode(rem)?;
+        dict.insert(key.to_string(), value);
+        remaining = new_remaining;
+    }
+    return Ok((BencodeValue::Dictionary(dict), &remaining[1..]));
+}
+
 fn decode(encoded_value: &str) -> Result<(BencodeValue, &str)> {
     match encoded_value.chars().next() {
         Some('i') => {
@@ -81,6 +106,10 @@ fn decode(encoded_value: &str) -> Result<(BencodeValue, &str)> {
         }
         Some('l') => {
             let (value, remaining) = decode_list(encoded_value)?;
+            return Ok((value, remaining));
+        }
+        Some('d') => {
+            let (value, remaining) = decode_dict(encoded_value)?;
             return Ok((value, remaining));
         }
         Some(_) => {
