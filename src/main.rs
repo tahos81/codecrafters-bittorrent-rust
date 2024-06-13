@@ -1,16 +1,16 @@
 #![warn(clippy::pedantic)]
 
-mod bencode_value;
-mod decoder;
-mod dict;
+mod bencode;
+mod torrent;
 
-use anyhow::bail;
 use anyhow::Result;
-use bencode_value::BencodeValue;
+use bencode::BencodeValue;
+use bittorrent_starter_rust::mini_serde_bencode;
+use bittorrent_starter_rust::mini_serde_bencode::from_bytes;
+use mini_serde_bencode::from_str;
 use std::env;
 use std::fs;
-
-use crate::decoder::decode;
+use torrent::Torrent;
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -18,28 +18,17 @@ fn main() -> Result<()> {
 
     if command == "decode" {
         let encoded_value = &args[2];
-        let (decoded_value, _) = decode(encoded_value.as_bytes())?;
-        println!("{}", decoded_value);
+        let bencode_value = from_str::<BencodeValue>(encoded_value)?;
+        println!("{bencode_value}");
     } else if command == "info" {
         let file = &args[2];
         let content = fs::read(file)?;
-        let (decoded_value, _) = decode(&content)?;
-        match decoded_value {
-            BencodeValue::Dictionary(dict) => {
-                if let Some(BencodeValue::String(announce)) = dict.get("\"announce\"") {
-                    print!("Tracker URL: {}", announce);
-                }
+        let torrent = from_bytes::<Torrent>(&content)?;
+        let info_hash = torrent.info_hash();
 
-                if let Some(BencodeValue::Dictionary(dict)) = dict.get("\"info\"") {
-                    if let Some(length) = dict.get("\"length\"") {
-                        print!("Length: {}", length);
-                    }
-                }
-            }
-            _ => {
-                bail!("invalid torrent file")
-            }
-        }
+        println!("Tracker URL: {}", torrent.announce);
+        println!("Length: {}", torrent.info.length);
+        println!("Info Hash: {}", hex::encode(info_hash));
     } else {
         println!("unknown command: {}", args[1]);
     }
