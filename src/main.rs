@@ -1,6 +1,7 @@
 #![warn(clippy::pedantic)]
 
 mod bencode;
+mod peers;
 mod torrent;
 
 use anyhow::Result;
@@ -8,11 +9,14 @@ use bencode::BencodeValue;
 use bittorrent_starter_rust::mini_serde_bencode;
 use bittorrent_starter_rust::mini_serde_bencode::from_bytes;
 use mini_serde_bencode::from_str;
+use peers::discover_peers;
+
 use std::env;
 use std::fs;
 use torrent::Torrent;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
     let command = &args[1];
 
@@ -34,6 +38,12 @@ fn main() -> Result<()> {
         for piece in torrent.info.pieces.chunks(20) {
             println!("{}", hex::encode(piece));
         }
+    } else if command == "peers" {
+        let file = &args[2];
+        let content = fs::read(file)?;
+        let torrent = from_bytes::<Torrent>(&content)?;
+        let resp = discover_peers(torrent).await?;
+        resp.print_peers();
     } else {
         println!("unknown command: {}", args[1]);
     }
