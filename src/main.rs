@@ -1,15 +1,16 @@
 #![warn(clippy::pedantic)]
 
 mod bencode;
-mod peers;
+mod peer;
 mod torrent;
+mod tracker;
 
 use anyhow::Result;
 use bencode::BencodeValue;
 use bittorrent_starter_rust::mini_serde_bencode;
 use bittorrent_starter_rust::mini_serde_bencode::from_bytes;
 use mini_serde_bencode::from_str;
-use peers::discover_peers;
+use tracker::discover_peers;
 
 use std::env;
 use std::fs;
@@ -42,8 +43,15 @@ async fn main() -> Result<()> {
         let file = &args[2];
         let content = fs::read(file)?;
         let torrent = from_bytes::<Torrent>(&content)?;
-        let resp = discover_peers(torrent).await?;
-        resp.print_peers();
+        let resp = discover_peers(&torrent).await?;
+        resp.iter().for_each(|peer| println!("{}", peer.to_url()));
+    } else if command == "handshake" {
+        let file = &args[2];
+        let content = fs::read(file)?;
+        let torrent = from_bytes::<Torrent>(&content)?;
+        let resp = discover_peers(&torrent).await?;
+        let peer = resp.iter().next().unwrap();
+        let _peer = peer.connect(torrent.info_hash()).await?;
     } else {
         println!("unknown command: {}", args[1]);
     }
