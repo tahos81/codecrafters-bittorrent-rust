@@ -53,7 +53,7 @@ impl<'de> Deserializer<'de> {
         self.input
             .iter()
             .next()
-            .map(|&val| val)
+            .copied()
             .ok_or(Error::Message("eof".to_string()))
     }
 
@@ -68,17 +68,14 @@ impl<'de> Deserializer<'de> {
     where
         T: Neg<Output = T> + AddAssign<T> + MulAssign<T> + From<i8>,
     {
-        let _ = match self.next_byte()? {
+        match self.next_byte()? {
             b'i' => {}
             _ => {
                 return Err(Error::Message("expected i".to_string()));
             }
         };
 
-        let is_neg = match self.peek_byte()? {
-            b'-' => true,
-            _ => false,
-        };
+        let is_neg = matches!(self.peek_byte()?, b'-');
 
         if is_neg {
             self.next_byte()?;

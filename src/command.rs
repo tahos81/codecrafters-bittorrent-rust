@@ -1,17 +1,15 @@
-use std::{
-    cmp::min,
-    fs::{self, File},
-    io::Write,
-};
-
-use anyhow::{anyhow, Result};
-use bittorrent_starter_rust::{bitmap::BitMap, mini_serde_bencode::from_bytes};
-use sha1::{Digest, Sha1};
-
 use crate::{
     peer::{ConnectedPeer, Peer, PeerMessage},
     torrent::Torrent,
     tracker::discover_peers,
+};
+use anyhow::{anyhow, Result};
+use bittorrent_starter_rust::{bitmap::BitMap, mini_serde_bencode::from_bytes};
+use sha1::{Digest, Sha1};
+use std::{
+    cmp::min,
+    fs::{self, File},
+    io::Write,
 };
 
 pub fn info(torrent_file: &str) -> Result<()> {
@@ -41,7 +39,7 @@ pub async fn peers(torrent_file: &str) -> Result<()> {
 pub async fn handshake(torrent_file: &str) -> Result<()> {
     let torrent = parse_torrent(torrent_file)?;
     let peers = discover_peers(&torrent).await?;
-    let peer = peers.get(0).ok_or(anyhow!("No peers found"))?;
+    let peer = peers.first().ok_or(anyhow!("No peers found"))?;
     let peer = peer.connect(torrent.info_hash()).await?;
     println!("Peer ID: {}", peer.peer_id);
 
@@ -85,7 +83,7 @@ pub async fn download(output_file: &str, torrent_file: &str) -> Result<()> {
 }
 
 async fn download_piece(
-    connected_peers: &mut Vec<ConnectedPeer>,
+    connected_peers: &mut [ConnectedPeer],
     torrent: &Torrent,
     piece_index: u32,
 ) -> Result<Vec<u8>> {
@@ -115,7 +113,7 @@ async fn download_piece(
             rem -= size;
         } else {
             println!("Expected piece message");
-            peer_idx = peer_idx + 1;
+            peer_idx += 1;
             if peer_idx == connected_peers.len() {
                 Err(anyhow!("Failed to download piece"))?;
             }
@@ -132,7 +130,7 @@ async fn download_piece(
 }
 
 fn parse_torrent(torrent_file: &str) -> Result<Torrent> {
-    let content = fs::read(&torrent_file)?;
+    let content = fs::read(torrent_file)?;
     let torrent = from_bytes::<Torrent>(&content)?;
     Ok(torrent)
 }
@@ -145,7 +143,7 @@ fn check_piece(piece: &[u8], piece_hash: &[u8]) -> bool {
 }
 
 fn write_piece(piece: &[u8], output_file: &str) -> Result<()> {
-    let mut tmp_file = File::create(&output_file)?;
+    let mut tmp_file = File::create(output_file)?;
     tmp_file.write_all(piece)?;
     Ok(())
 }

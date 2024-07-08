@@ -5,6 +5,12 @@ pub struct BitMap {
     data: Vec<u8>,
 }
 
+impl Default for BitMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BitMap {
     pub fn new() -> Self {
         Self { data: Vec::new() }
@@ -13,7 +19,7 @@ impl BitMap {
     pub fn get(&self, idx: usize) -> bool {
         let byte = idx / 8;
         let bit = idx % 8;
-        self.data[byte as usize] & (1 << bit) != 0
+        self.data[byte] & (1 << bit) != 0
     }
 
     pub fn set(&mut self, idx: usize) {

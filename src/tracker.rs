@@ -24,7 +24,7 @@ impl TrackerRequest {
             port: 6881,
             uploaded: 0,
             downloaded: 0,
-            left: torrent.info.length as u64,
+            left: u64::from(torrent.info.length),
             compact: 1,
         }
     }

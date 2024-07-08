@@ -49,7 +49,7 @@ mod tests {
     fn test_de_info() {
         let input = "d6:lengthi282334976e4:name28:ubuntu-20.04.1-desktop-amd6412:piece lengthi20e6:pieces22:0123456789abcdef012345e";
         let info = from_str::<Info>(input).unwrap();
-        assert_eq!(info.length, 282334976);
+        assert_eq!(info.length, 282_334_976);
         assert_eq!(info.name, "ubuntu-20.04.1-desktop-amd64");
         assert_eq!(info.piece_length, 20);
         assert_eq!(info.pieces.len(), 22);

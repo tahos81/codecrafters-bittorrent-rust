@@ -210,7 +210,7 @@ impl Display for Peer {
             "{}:{}",
             self.ip
                 .iter()
-                .map(|byte| byte.to_string())
+                .map(std::string::ToString::to_string)
                 .collect::<Vec<String>>()
                 .join("."),
             self.port
@@ -223,7 +223,7 @@ impl Peer {
         Self { ip, port }
     }
 
-    pub fn to_url(&self) -> String {
+    pub fn to_url(self) -> String {
         self.to_string()
     }
 
@@ -271,7 +271,7 @@ impl Handshake {
             return Err(anyhow!("Invalid handshake"));
         }
         let info_hash = buf[28..48].to_vec();
-        let peer_id = hex::encode(buf[48..68].to_vec());
+        let peer_id = hex::encode(&buf[48..68]);
         Ok(Self { info_hash, peer_id })
     }
 }
