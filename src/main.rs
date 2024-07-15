@@ -7,6 +7,8 @@ mod peer;
 mod torrent;
 mod tracker;
 
+use std::time::Instant;
+
 use anyhow::Result;
 use bencode::BencodeValue;
 use bittorrent_starter_rust::mini_serde_bencode;
@@ -17,6 +19,7 @@ use mini_serde_bencode::from_str;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let start = Instant::now();
     let args = Args::parse();
 
     match args.cmd {
@@ -42,6 +45,9 @@ async fn main() -> Result<()> {
             command::download(&output_file, &torrent_file).await?;
         }
     }
+
+    let duration = start.elapsed();
+    eprintln!("Time elapsed is: {:?}", duration);
 
     Ok(())
 }

@@ -1,10 +1,13 @@
 use anyhow::{anyhow, Result};
 use bittorrent_starter_rust::bitmap::BitMap;
-use std::fmt::Display;
+use sha1::{Digest, Sha1};
+use std::{cmp::min, fmt::Display, sync::Arc};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
 };
+
+use crate::torrent::Torrent;
 
 #[derive(Debug)]
 pub enum PeerMessage {
@@ -92,15 +95,17 @@ pub struct ConnectedPeer {
     pub peer_id: String,
     pub peer: Peer,
     pub connection_state: ConnectionState,
+    pub torrent: Arc<Torrent>,
 }
 
 impl ConnectedPeer {
-    fn new(socket: TcpStream, peer_id: String, peer: Peer) -> Self {
+    fn new(socket: TcpStream, peer_id: String, peer: Peer, torrent: Arc<Torrent>) -> Self {
         Self {
             socket,
             peer_id,
             peer,
             connection_state: ConnectionState::new(),
+            torrent,
         }
     }
 
@@ -195,6 +200,49 @@ impl ConnectedPeer {
             _ => Err(anyhow!("Unknown message id: {}", id)),
         }
     }
+
+    pub async fn download_piece(&mut self, piece_index: u32) -> Result<Vec<u8>> {
+        println!("Downloading piece: {piece_index}");
+        let file_length = self.torrent.info.length;
+        let piece_length = min(
+            file_length - piece_index * self.torrent.info.piece_length,
+            self.torrent.info.piece_length,
+        );
+
+        let mut piece: Vec<u8> = Vec::with_capacity(piece_length as usize);
+        let block_size = 2u32.pow(14);
+        let mut rem = piece_length;
+
+        while rem > 0 {
+            let size = min(rem, block_size);
+
+            self.send_message(PeerMessage::Request(piece_index, piece_length - rem, size))
+                .await?;
+
+            if let PeerMessage::Piece(piece_idx, begin, block) = self.receive_message().await? {
+                println!("Received block: {} for piece {}", begin, piece_idx);
+                piece.extend_from_slice(&block);
+                rem -= size;
+            } else {
+                Err(anyhow!("Failed to download piece"))?;
+            }
+        }
+
+        let piece_index = piece_index as usize;
+        let piece_hash = &self.torrent.info.pieces[piece_index * 20..(piece_index + 1) * 20];
+        if !check_piece(&piece, piece_hash) {
+            Err(anyhow!("Piece hash does not match"))?;
+        }
+
+        Ok(piece)
+    }
+}
+
+fn check_piece(piece: &[u8], piece_hash: &[u8]) -> bool {
+    let mut hasher = Sha1::new();
+    hasher.update(piece);
+    let hash = hasher.finalize().to_vec();
+    hash == piece_hash
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -227,22 +275,18 @@ impl Peer {
         self.to_string()
     }
 
-    pub async fn connect(self, info_hash: Vec<u8>) -> Result<ConnectedPeer> {
-        let peer_handle = tokio::spawn(async move {
-            if let Ok(mut socket) = TcpStream::connect(self.to_url()).await {
-                let handshake = Handshake::new(info_hash, "00112233445566778899".to_string());
-                socket.write_all(&handshake.to_bytes()).await?;
-                socket.flush().await?;
-                let mut buf = [0; 68];
-                socket.read_exact(&mut buf).await?;
-                let handshake = Handshake::from_buf(buf)?;
-                Ok(ConnectedPeer::new(socket, handshake.peer_id, self))
-            } else {
-                Err(anyhow!("Failed to connect to peer"))
-            }
-        });
-
-        peer_handle.await?
+    pub async fn connect(self, torrent: Arc<Torrent>) -> Result<ConnectedPeer> {
+        if let Ok(mut socket) = TcpStream::connect(self.to_url()).await {
+            let handshake = Handshake::new(torrent.info_hash(), "00112233445566778899".to_string());
+            socket.write_all(&handshake.to_bytes()).await?;
+            socket.flush().await?;
+            let mut buf = [0; 68];
+            socket.read_exact(&mut buf).await?;
+            let handshake = Handshake::from_buf(buf)?;
+            Ok(ConnectedPeer::new(socket, handshake.peer_id, self, torrent))
+        } else {
+            Err(anyhow!("Failed to connect to peer"))
+        }
     }
 }
 
