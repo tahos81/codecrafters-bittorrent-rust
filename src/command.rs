@@ -165,10 +165,10 @@ async fn connect_to_peers(peers: Vec<Peer>, torrent: Arc<Torrent>) -> Result<Vec
                     return None;
                 }
 
-                return Some(peer);
+                Some(peer)
             } else {
                 println!("Failed to connect to peer {peer}");
-                return None;
+                None
             }
         });
 

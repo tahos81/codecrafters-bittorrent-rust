@@ -47,7 +47,7 @@ async fn main() -> Result<()> {
     }
 
     let duration = start.elapsed();
-    eprintln!("Time elapsed is: {:?}", duration);
+    eprintln!("Time elapsed is: {duration:?}");
 
     Ok(())
 }

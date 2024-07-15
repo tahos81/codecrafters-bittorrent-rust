@@ -220,7 +220,7 @@ impl ConnectedPeer {
                 .await?;
 
             if let PeerMessage::Piece(piece_idx, begin, block) = self.receive_message().await? {
-                println!("Received block: {} for piece {}", begin, piece_idx);
+                println!("Received block: {begin} for piece {piece_idx}");
                 piece.extend_from_slice(&block);
                 rem -= size;
             } else {
